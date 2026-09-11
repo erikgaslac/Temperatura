@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mapa de calor · Uso de aulas presenciales</title>
+<style>
+  :root{
+    --tinta:#12283f; --tinta-2:#3c5570; --linea:#d7dfe8;
+    --papel:#f7f9fb; --blanco:#ffffff; --celeste:#dff3fc;
+    --acento:#0f6ea8; --amarillo:#fff27a; --verde:#b4e1a3;
+    --rojo:#c0392b;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--papel);color:var(--tinta);
+    font-family:"Segoe UI",-apple-system,Roboto,Arial,sans-serif;font-size:14px;line-height:1.45}
+  .wrap{max-width:1400px;margin:0 auto;padding:28px 22px 60px}
+  header h1{font-size:26px;font-weight:700;margin:0 0 4px;letter-spacing:-.01em}
+  header p{margin:0;color:var(--tinta-2);max-width:70ch}
+  .panel{background:var(--blanco);border:1px solid var(--linea);border-radius:10px;padding:18px;margin-top:20px}
+
+  /* Carga */
+  #zona{border:2px dashed var(--acento);border-radius:10px;background:#f2fafd;
+    padding:30px 20px;text-align:center;transition:background .15s}
+  #zona.drag{background:#dff0f9}
+  .btn{appearance:none;border:0;border-radius:7px;background:var(--acento);color:#fff;
+    font:inherit;font-weight:600;padding:11px 20px;cursor:pointer}
+  .btn:hover{background:#0b5b8a}
+  .btn:focus-visible{outline:3px solid #86c8e6;outline-offset:2px}
+  .btn.sec{background:#fff;color:var(--acento);border:1px solid var(--acento)}
+  .btn.sec:hover{background:#eaf5fb}
+  .hint{color:var(--tinta-2);font-size:13px;margin-top:10px}
+  #archivo{display:none}
+
+  /* Filtros */
+  .filtros{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end}
+  .campo{display:flex;flex-direction:column;gap:5px}
+  .campo label{font-size:12px;font-weight:600;color:var(--tinta-2)}
+  select{font:inherit;padding:8px 10px;border:1px solid var(--linea);border-radius:6px;
+    background:var(--amarillo);min-width:190px;color:var(--tinta);font-weight:600}
+  select:focus-visible{outline:3px solid #86c8e6;outline-offset:1px}
+
+  /* KPI */
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-top:20px}
+  .kpi{background:var(--blanco);border:1px solid var(--linea);border-left:4px solid var(--acento);
+    border-radius:8px;padding:14px 16px}
+  .kpi .v{font-size:28px;font-weight:700;line-height:1.1}
+  .kpi .l{font-size:12px;color:var(--tinta-2);margin-top:3px}
+
+  /* Tabla */
+  .scroll{overflow-x:auto}
+  table{border-collapse:collapse;width:100%;min-width:980px}
+  th,td{border:1px solid #c9d4de;padding:6px 4px;text-align:center;font-size:13px;white-space:nowrap}
+  thead th{background:var(--verde);font-weight:700}
+  thead th:first-child{background:var(--verde)}
+  tbody th{background:var(--amarillo);font-weight:700;text-align:left;padding-left:10px;min-width:74px}
+  td.cero{color:#a9b4bd}
+  td.pico{outline:2.5px solid #12283f;outline-offset:-2.5px;font-weight:700}
+  .fin th,.fin td{background:#e6f0f8;font-weight:700}
+  .lat{background:#f1f4f7;font-weight:700}
+  caption{caption-side:top;text-align:left;font-weight:700;padding-bottom:10px}
+
+  /* Barras por hora */
+  .barras{display:flex;align-items:flex-end;gap:4px;height:130px;margin-top:8px}
+  .barra{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:4px;height:100%}
+  .barra i{display:block;width:100%;border-radius:3px 3px 0 0;background:var(--acento);min-height:2px}
+  .barra span{font-size:11px;color:var(--tinta-2)}
+  .barra b{font-size:11px}
+
+  .leyenda{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--tinta-2);margin-top:12px}
+  .rampa{height:12px;width:190px;border:1px solid var(--linea);border-radius:3px;
+    background:linear-gradient(90deg,#92daf7,#ffe699,#f8696b)}
+  .nota{font-size:12px;color:var(--tinta-2);margin-top:14px;max-width:95ch}
+  .err{background:#fdecea;border:1px solid #f5b7b1;color:#922b21;border-radius:8px;padding:12px 14px;margin-top:16px}
+  .oculto{display:none}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>Mapa de calor · uso de aula presencial</h1>
+    <p>Carga el Excel de horarios y obtén, por día de la semana, en qué franja se concentra el mayor número de clases. Todo se procesa en tu navegador; el archivo no sale de tu equipo.</p>
+  </header>
+
+  <div class="panel">
+    <div id="zona">
+      <button class="btn" id="btnCargar">Elegir archivo de horarios</button>
+      <input type="file" id="archivo" accept=".xlsx,.xlsm,.xls,.csv">
+      <div class="hint">O arrastra aquí el archivo. Debe tener las columnas <strong>Marca</strong>, <strong>SEDESEDE</strong> y <strong>Horario</strong> (ej. «Mie 21:15 A 22:45, Vie 21:00 A 22:53»).</div>
+      <div id="estado" class="hint"></div>
+    </div>
+    <div id="error" class="err oculto"></div>
+  </div>
+
+  <section id="tablero" class="oculto">
+
+    <div class="panel">
+      <div class="filtros">
+        <div class="campo"><label for="fMarca">Marca</label><select id="fMarca"></select></div>
+        <div class="campo"><label for="fSede">SEDESEDE</label><select id="fSede"></select></div>
+        <div class="campo"><label for="fAula">Tipo de ambiente</label><select id="fAula">
+          <option value="todas">Todas las aulas</option>
+          <option value="presencial">Solo las marcadas PRESENCIAL</option>
+        </select></div>
+        <button class="btn sec" id="btnLimpiar">Limpiar filtros</button>
+        <button class="btn sec" id="btnCsv">Descargar tabla en CSV</button>
+      </div>
+    </div>
+
+    <div class="kpis">
+      <div class="kpi"><div class="v" id="kHora">–</div><div class="l">Hora pico de la semana</div></div>
+      <div class="kpi"><div class="v" id="kDia">–</div><div class="l">Día y hora de mayor ocupación</div></div>
+      <div class="kpi"><div class="v" id="kMax">–</div><div class="l">Aulas ocupadas a la vez en ese momento</div></div>
+      <div class="kpi"><div class="v" id="kTotal">–</div><div class="l">Bloques de clase considerados</div></div>
+    </div>
+
+    <div class="panel">
+      <div class="scroll">
+        <table id="tabla">
+          <caption id="cap">Bloques de clase por día y franja horaria</caption>
+        </table>
+      </div>
+      <div class="leyenda"><span>Menos uso</span><div class="rampa"></div><span>Más uso</span><span style="margin-left:14px">El recuadro negro marca la hora pico de cada día.</span></div>
+      <p class="nota">Cada celda cuenta los bloques de clase que ocupan un aula dentro de esa franja; la franja 08:00 cubre de 08:00 a 08:59. Un horario con varios tramos separados por coma se cuenta como un bloque por tramo, y un bloque que cruza varias franjas cuenta en todas las que toca.</p>
+    </div>
+
+    <div class="panel">
+      <strong>Total semanal por franja</strong>
+      <div class="barras" id="barras"></div>
+    </div>
+
+  </section>
+</div>
+
+<script>
+/* ---------- Carga de SheetJS con respaldo ---------- */
+const CDNS = [
+  "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js",
+  "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js",
+  "https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js"
+];
+function cargarXLSX(i=0){
+  return new Promise((ok,fail)=>{
+    if(window.XLSX) return ok();
+    if(i>=CDNS.length) return fail(new Error("no-cdn"));
+    const s=document.createElement("script");
+    s.src=CDNS[i];
+    s.onload=()=> window.XLSX ? ok() : cargarXLSX(i+1).then(ok,fail);
+    s.onerror=()=> cargarXLSX(i+1).then(ok,fail);
+    document.head.appendChild(s);
+  });
+}
+cargarXLSX().catch(()=>{
+  mostrarError("No se pudo cargar el lector de Excel desde internet. Conéctate a la red y recarga la página, o guarda el archivo como CSV y vuelve a intentarlo.");
+});
+
+/* ---------- Estado ---------- */
+const DIAS=["lun","mar","mie","jue","vie","sáb","dom"];
+const MAPD={lun:"lun",lu:"lun",mar:"mar",ma:"mar",mie:"mie","mié":"mie",mi:"mie",
+            jue:"jue",ju:"jue",vie:"vie",vi:"vie",sab:"sáb","sáb":"sáb",sa:"sáb",dom:"dom",do:"dom"};
+const HORAS=Array.from({length:17},(_,i)=>i+7); // 07:00 a 23:00
+let bloques=[], tablaActual=null;
+
+const $=id=>document.getElementById(id);
+const hh=h=>String(h).padStart(2,"0")+":00";
+
+function mostrarError(msg){ const e=$("error"); e.textContent=msg; e.classList.remove("oculto"); }
+function limpiarError(){ $("error").classList.add("oculto"); }
+
+/* ---------- Lectura del archivo ---------- */
+$("btnCargar").onclick=()=>$("archivo").click();
+$("archivo").onchange=e=>{ if(e.target.files[0]) leer(e.target.files[0]); };
+const zona=$("zona");
+["dragenter","dragover"].forEach(ev=>zona.addEventListener(ev,e=>{e.preventDefault();zona.classList.add("drag");}));
+["dragleave","drop"].forEach(ev=>zona.addEventListener(ev,e=>{e.preventDefault();zona.classList.remove("drag");}));
+zona.addEventListener("drop",e=>{ const f=e.dataTransfer.files[0]; if(f) leer(f); });
+
+async function leer(file){
+  limpiarError();
+  $("estado").textContent="Leyendo "+file.name+"…";
+  try{
+    await cargarXLSX();
+    const buf=await file.arrayBuffer();
+    const wb=XLSX.read(buf,{type:"array"});
+    let filas=[];
+    for(const nom of wb.SheetNames){
+      const f=XLSX.utils.sheet_to_json(wb.Sheets[nom],{defval:""});
+      if(f.length && Object.keys(f[0]).some(k=>norm(k)==="horario")){ filas=f; break; }
+    }
+    if(!filas.length) throw new Error("sin-horario");
+    procesar(filas);
+  }catch(err){
+    $("estado").textContent="";
+    mostrarError(err.message==="sin-horario"
+      ? "No encontré una columna llamada «Horario» en ninguna hoja del archivo. Revisa el encabezado y vuelve a cargarlo."
+      : "No pude leer el archivo. Comprueba que sea un .xlsx o .csv válido y no esté protegido con contraseña.");
+  }
+}
+const norm=s=>String(s).trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
+
+function campo(fila,...nombres){
+  for(const k of Object.keys(fila)) if(nombres.includes(norm(k))) return String(fila[k]).trim();
+  return "";
+}
+
+function procesar(filas){
+  const re=/([A-Za-zÁÉÍÓÚáéíóúü]{2,4})\.?\s+(\d{1,2}):(\d{2})\s*(?:A|-|–|a las)\s*(\d{1,2}):(\d{2})/g;
+  bloques=[]; let sinLeer=0;
+  filas.forEach(f=>{
+    const horario=campo(f,"horario");
+    if(!horario) return;
+    const marca=campo(f,"marca")||"(sin marca)";
+    const sede=campo(f,"sedesede","sede sede","sede")||"(sin sede)";
+    const aula=campo(f,"aula","ambiente");
+    let m, hubo=false;
+    re.lastIndex=0;
+    while((m=re.exec(horario))!==null){
+      const d=MAPD[norm(m[1])];
+      if(!d) continue;
+      const ini=+m[2]*60+ +m[3], fin=+m[4]*60+ +m[5];
+      if(fin<=ini) continue;
+      bloques.push({marca,sede,aula,dia:d,ini,fin,pres:/PRESENCIAL/i.test(aula)});
+      hubo=true;
+    }
+    if(!hubo) sinLeer++;
+  });
+  if(!bloques.length){ mostrarError("Leí el archivo pero ningún horario tenía el formato «Lun 19:00 A 21:15». Revisa la columna Horario."); return; }
+  llenarSelect($("fMarca"),bloques.map(b=>b.marca),"Todas las marcas");
+  llenarSelect($("fSede"),bloques.map(b=>b.sede),"Todas las sedes");
+  $("estado").textContent = bloques.length+" bloques de clase leídos de "+filas.length+" filas"+(sinLeer?" · "+sinLeer+" fila(s) sin horario reconocible":"");
+  $("tablero").classList.remove("oculto");
+  render();
+}
+
+function llenarSelect(sel,valores,etiqueta){
+  const unicos=[...new Set(valores)].sort((a,b)=>a.localeCompare(b,"es"));
+  sel.innerHTML='<option value="*">'+etiqueta+"</option>"+unicos.map(v=>`<option>${v}</option>`).join("");
+}
+
+/* ---------- Cálculo y pintado ---------- */
+["fMarca","fSede","fAula"].forEach(id=>$(id).onchange=render);
+$("btnLimpiar").onclick=()=>{ $("fMarca").value="*"; $("fSede").value="*"; $("fAula").value="todas"; render(); };
+
+function render(){
+  const fm=$("fMarca").value, fs=$("fSede").value, fa=$("fAula").value;
+  const datos=bloques.filter(b=>(fm==="*"||b.marca===fm)&&(fs==="*"||b.sede===fs)&&(fa==="todas"||b.pres));
+
+  const grid=DIAS.map(d=>HORAS.map(h=>{
+    const ini=h*60, fin=ini+60;
+    return datos.filter(b=>b.dia===d&&b.ini<fin&&b.fin>ini).length;
+  }));
+  const totalDia=DIAS.map((d,i)=>datos.filter(b=>b.dia===d).length);
+  const totalHora=HORAS.map((_,j)=>DIAS.reduce((s,_,i)=>s+grid[i][j],0));
+  const maxCelda=Math.max(...grid.flat());
+  const maxHora=Math.max(...totalHora);
+  const picoHora=maxHora>0?HORAS[totalHora.indexOf(maxHora)]:null;
+  let pd=-1,ph=-1;
+  grid.forEach((f,i)=>f.forEach((v,j)=>{ if(v===maxCelda&&maxCelda>0&&pd<0){pd=i;ph=j;} }));
+
+  $("kHora").textContent = picoHora!==null?hh(picoHora):"–";
+  $("kDia").textContent  = pd>=0?DIAS[pd]+" "+hh(HORAS[ph]):"–";
+  $("kMax").textContent  = maxCelda||0;
+  $("kTotal").textContent= datos.length;
+
+  pintarTabla(grid,totalDia,totalHora,maxCelda);
+  pintarBarras(totalHora,maxHora);
+  tablaActual={grid,totalDia,totalHora};
+}
+
+function color(v,max){
+  if(v===0) return {bg:"var(--celeste)",cls:"cero"};
+  const t=max<=1?1:v/max;
+  // celeste -> ámbar -> rojo
+  const A=[146,218,247], B=[255,230,153], C=[248,105,107];
+  const p=t<.5?t/.5:(t-.5)/.5, de=t<.5?A:B, a=t<.5?B:C;
+  const rgb=de.map((x,i)=>Math.round(x+(a[i]-x)*p));
+  return {bg:`rgb(${rgb.join(",")})`,cls:""};
+}
+
+function pintarTabla(grid,totalDia,totalHora,maxCelda){
+  const t=$("tabla");
+  let h='<thead><tr><th>Día</th>'+HORAS.map(x=>`<th>${hh(x)}</th>`).join("")
+      +'<th>Máx</th><th>Hora pico</th><th>Total</th></tr></thead><tbody>';
+  grid.forEach((fila,i)=>{
+    const mx=Math.max(...fila);
+    h+=`<tr><th scope="row">${DIAS[i]}</th>`;
+    fila.forEach(v=>{
+      const c=color(v,maxCelda);
+      h+=`<td class="${c.cls} ${v>0&&v===mx?"pico":""}" style="background:${c.bg}">${v}</td>`;
+    });
+    h+=`<td class="lat">${mx}</td><td class="lat">${mx>0?hh(HORAS[fila.indexOf(mx)]):"–"}</td><td class="lat">${totalDia[i]}</td></tr>`;
+  });
+  const mxS=Math.max(...totalHora);
+  h+='<tr class="fin"><th scope="row">Total semana</th>'+totalHora.map(v=>`<td>${v}</td>`).join("")
+    +`<td>${mxS}</td><td>${mxS>0?hh(HORAS[totalHora.indexOf(mxS)]):"–"}</td><td>${totalDia.reduce((a,b)=>a+b,0)}</td></tr></tbody>`;
+  t.innerHTML='<caption id="cap">Bloques de clase por día y franja horaria</caption>'+h;
+}
+
+function pintarBarras(totalHora,maxHora){
+  $("barras").innerHTML=HORAS.map((x,j)=>{
+    const alt=maxHora?Math.max(2,Math.round(totalHora[j]/maxHora*88)):2;
+    return `<div class="barra"><b>${totalHora[j]}</b><i style="height:${alt}%"></i><span>${String(x).padStart(2,"0")}</span></div>`;
+  }).join("");
+}
+
+/* ---------- Exportar ---------- */
+$("btnCsv").onclick=()=>{
+  if(!tablaActual) return;
+  const {grid,totalDia,totalHora}=tablaActual;
+  let csv="Dia;"+HORAS.map(hh).join(";")+";Total\n";
+  grid.forEach((f,i)=>csv+=DIAS[i]+";"+f.join(";")+";"+totalDia[i]+"\n");
+  csv+="Total semana;"+totalHora.join(";")+";"+totalDia.reduce((a,b)=>a+b,0)+"\n";
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"}));
+  a.download="mapa_calor_aulas.csv"; a.click(); URL.revokeObjectURL(a.href);
+};
+</script>
+</body>
+</html>
